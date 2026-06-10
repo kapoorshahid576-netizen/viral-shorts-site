@@ -1,0 +1,1166 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ViralShorts – AI Video Series Dashboard</title>
+<style>
+  /* ── Reset & Base ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+    background: #0a0a0f;
+    color: #e8e8f0;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a2a3a; border-radius: 3px; }
+  button { font-family: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; }
+  select option { background: #13131a; color: #e8e8f0; }
+ 
+  /* ── Animations ── */
+  @keyframes fadeIn   { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes blink    { 0%,100%{opacity:1} 50%{opacity:0} }
+  @keyframes spin     { to { transform: rotate(360deg); } }
+  @keyframes pulse    { 0%,100%{opacity:1} 50%{opacity:.4} }
+  @keyframes slideIn  { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+ 
+  /* ── Layout ── */
+  #app { display: flex; min-height: 100vh; }
+ 
+  /* ── Sidebar ── */
+  #sidebar {
+    width: 230px;
+    min-width: 230px;
+    background: #13131a;
+    border-right: 1px solid #2a2a3a;
+    display: flex;
+    flex-direction: column;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    transition: width .2s, min-width .2s;
+    overflow: hidden;
+    flex-shrink: 0;
+    z-index: 100;
+  }
+  #sidebar.collapsed { width: 64px; min-width: 64px; }
+  .sidebar-logo {
+    padding: 20px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    white-space: nowrap;
+  }
+  .logo-icon {
+    width: 36px; height: 36px; border-radius: 10px;
+    background: linear-gradient(135deg, #a259ff, #ff5eaa);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; flex-shrink: 0;
+  }
+  .logo-text {
+    font-weight: 900; font-size: 17px;
+    background: linear-gradient(135deg, #a259ff, #ff5eaa);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+    transition: opacity .2s;
+  }
+  #sidebar.collapsed .logo-text { opacity: 0; pointer-events: none; }
+ 
+  nav { flex: 1; padding: 10px 8px; display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+  .nav-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 10px; border: none;
+    background: transparent; color: #7070a0;
+    text-align: left; transition: all .12s; white-space: nowrap;
+    font-size: 14px; font-weight: 400;
+  }
+  .nav-item:hover { background: #a259ff11; color: #c89dff; }
+  .nav-item.active { background: #a259ff22; color: #a259ff; font-weight: 700; }
+  .nav-item svg { flex-shrink: 0; }
+  .nav-label { transition: opacity .2s; }
+  #sidebar.collapsed .nav-label { opacity: 0; }
+ 
+  .sidebar-create {
+    padding: 12px;
+  }
+  .btn-create {
+    width: 100%;
+    background: linear-gradient(135deg, #a259ff, #ff5eaa);
+    color: #fff; border: none; border-radius: 10px; padding: 11px 0;
+    font-size: 14px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+    white-space: nowrap; overflow: hidden;
+    transition: opacity .15s;
+  }
+  .btn-create:hover { opacity: .88; }
+  .btn-create-text { transition: opacity .2s; }
+  #sidebar.collapsed .btn-create-text { opacity: 0; }
+ 
+  .sidebar-toggle {
+    background: transparent; border: none; color: #7070a0;
+    padding: 12px 0; font-size: 18px; text-align: center;
+    width: 100%; transition: color .15s;
+  }
+  .sidebar-toggle:hover { color: #e8e8f0; }
+ 
+  /* ── Main ── */
+  #main { flex: 1; overflow: auto; min-width: 0; display: flex; flex-direction: column; }
+ 
+  /* ── Topbar ── */
+  #topbar {
+    height: 60px;
+    border-bottom: 1px solid #2a2a3a;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 28px;
+    position: sticky; top: 0; background: #0a0a0f; z-index: 50;
+    flex-shrink: 0;
+  }
+  #topbar-title { font-size: 18px; font-weight: 800; color: #e8e8f0; }
+  .topbar-right { display: flex; align-items: center; gap: 14px; }
+  .search-box {
+    background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 8px;
+    padding: 7px 14px; display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #7070a0;
+  }
+  .avatar-btn {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: linear-gradient(135deg, #a259ff, #ff5eaa);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; border: none; cursor: pointer;
+  }
+ 
+  /* ── Content ── */
+  #content { padding: 28px; flex: 1; animation: fadeIn .25s ease; }
+ 
+  /* ── Tab Panels ── */
+  .tab-panel { display: none; flex-direction: column; gap: 28px; }
+  .tab-panel.active { display: flex; animation: fadeIn .2s ease; }
+ 
+  /* ── Welcome Banner ── */
+  .welcome-banner {
+    background: linear-gradient(135deg, #a259ff22, #ff5eaa11);
+    border: 1px solid #a259ff33; border-radius: 16px;
+    padding: 24px 28px;
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;
+  }
+  .welcome-title { font-size: 24px; font-weight: 900; color: #e8e8f0; }
+  .welcome-sub { color: #7070a0; font-size: 14px; margin-top: 4px; }
+  .welcome-sub span { color: #a259ff; font-weight: 700; }
+ 
+  /* ── Stat Grid ── */
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; }
+  .stat-card {
+    background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px;
+    padding: 20px 22px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .stat-card-top { display: flex; justify-content: space-between; align-items: center; }
+  .stat-label { font-size: 12px; color: #7070a0; text-transform: uppercase; letter-spacing: .06em; }
+  .stat-icon { font-size: 20px; }
+  .stat-value { font-size: 30px; font-weight: 800; color: #e8e8f0; letter-spacing: -.02em; }
+  .stat-delta-pos { font-size: 12px; color: #4ade80; }
+  .stat-delta-neg { font-size: 12px; color: #f87171; }
+ 
+  /* ── Cards ── */
+  .card {
+    background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px; padding: 22px 24px;
+  }
+  .card-title { font-weight: 800; color: #e8e8f0; font-size: 15px; margin-bottom: 16px; }
+ 
+  /* ── Two-col grid ── */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+ 
+  /* ── AI Insight ── */
+  .insight-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+  .insight-heading { display: flex; align-items: center; gap: 10px; }
+  #insight-text { color: #e8e8f0; font-size: 14px; line-height: 1.8; white-space: pre-wrap; }
+  #insight-placeholder { color: #7070a0; font-size: 14px; }
+ 
+  /* ── Badge ── */
+  .badge {
+    border-radius: 6px; padding: 2px 9px; font-size: 11px; font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase; display: inline-block;
+  }
+  .badge-purple  { background: #a259ff22; color: #a259ff; border: 1px solid #a259ff44; }
+  .badge-green   { background: #4ade8022; color: #4ade80; border: 1px solid #4ade8044; }
+  .badge-red     { background: #f8717122; color: #f87171; border: 1px solid #f8717144; }
+  .badge-blue    { background: #60a5fa22; color: #60a5fa; border: 1px solid #60a5fa44; }
+  .badge-pink    { background: #ff5eaa22; color: #ff5eaa; border: 1px solid #ff5eaa44; }
+ 
+  /* ── Small series row ── */
+  .series-row {
+    display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+    background: #1a1a26; border-radius: 10px;
+  }
+  .series-row-emoji { font-size: 24px; }
+  .series-row-info { flex: 1; min-width: 0; }
+  .series-row-title { font-size: 13px; font-weight: 700; color: #e8e8f0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .series-row-sub   { font-size: 11px; color: #7070a0; }
+  .series-row-views { text-align: right; flex-shrink: 0; font-size: 13px; font-weight: 700; color: #a259ff; }
+  .series-row-views-label { font-size: 11px; color: #7070a0; }
+ 
+  /* ── Queue row ── */
+  .queue-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #1a1a26; border-radius: 10px; }
+  .queue-dot { width: 8px; height: 8px; border-radius: 50%; background: #4ade80; flex-shrink: 0; }
+ 
+  /* ── Buttons ── */
+  .btn-primary {
+    background: linear-gradient(135deg, #a259ff, #ff5eaa);
+    color: #fff; border: none; border-radius: 10px; padding: 12px 22px;
+    font-size: 14px; font-weight: 700; cursor: pointer; transition: opacity .15s;
+  }
+  .btn-primary:hover { opacity: .88; }
+  .btn-primary:disabled { opacity: .5; cursor: default; }
+  .btn-secondary {
+    background: transparent; color: #e8e8f0;
+    border: 1px solid #2a2a3a; border-radius: 10px; padding: 12px 22px;
+    font-size: 14px; cursor: pointer; transition: border-color .15s;
+  }
+  .btn-secondary:hover { border-color: #a259ff; }
+ 
+  /* ── Pill filters ── */
+  .pill-row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    background: transparent; color: #7070a0; border: 1px solid #2a2a3a;
+    border-radius: 20px; padding: 5px 16px; font-size: 13px; cursor: pointer;
+    font-weight: 400; transition: all .15s;
+  }
+  .pill.active { background: #a259ff; color: #fff; border-color: #a259ff; font-weight: 700; }
+ 
+  /* ── Series Cards Grid ── */
+  .series-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .series-card {
+    background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px;
+    padding: 20px; display: flex; flex-direction: column; gap: 14px;
+    transition: border-color .15s;
+  }
+  .series-card:hover { border-color: #a259ff55; }
+  .series-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+  .series-card-left { display: flex; gap: 12px; align-items: center; }
+  .series-thumb {
+    width: 52px; height: 52px; border-radius: 12px; background: #1a1a26;
+    display: flex; align-items: center; justify-content: center; font-size: 26px; flex-shrink: 0;
+  }
+  .series-card-title { font-weight: 800; font-size: 14px; color: #e8e8f0; }
+  .series-card-sub { font-size: 12px; color: #7070a0; margin-top: 2px; }
+  .series-meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .series-meta-item { background: #1a1a26; border-radius: 8px; padding: 8px 12px; }
+  .series-meta-label { font-size: 11px; color: #7070a0; }
+  .series-meta-value { font-size: 13px; font-weight: 700; color: #e8e8f0; margin-top: 2px; }
+  .series-actions { display: flex; gap: 8px; }
+  .btn-pause {
+    flex: 1; background: #f8717122; color: #f87171;
+    border: 1px solid #f8717144; border-radius: 8px; padding: 8px 0;
+    font-size: 13px; cursor: pointer; font-weight: 600; transition: background .15s;
+  }
+  .btn-pause:hover { background: #f8717133; }
+  .btn-resume {
+    flex: 1; background: #4ade8022; color: #4ade80;
+    border: 1px solid #4ade8044; border-radius: 8px; padding: 8px 0;
+    font-size: 13px; cursor: pointer; font-weight: 600; transition: background .15s;
+  }
+  .btn-resume:hover { background: #4ade8033; }
+  .btn-edit {
+    flex: 1; background: transparent; color: #e8e8f0;
+    border: 1px solid #2a2a3a; border-radius: 8px; padding: 8px 0;
+    font-size: 13px; cursor: pointer; transition: border-color .15s;
+  }
+  .btn-edit:hover { border-color: #a259ff; }
+ 
+  /* ── Queue Table ── */
+  .queue-table-wrap { background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px; overflow: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 700px; }
+  thead tr { background: #1a1a26; }
+  th { padding: 12px 18px; text-align: left; font-size: 12px; color: #7070a0; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; white-space: nowrap; }
+  td { padding: 14px 18px; font-size: 13px; color: #e8e8f0; border-top: 1px solid #2a2a3a; }
+  tr:nth-child(even) td { background: #1a1a2622; }
+  .td-title { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .td-muted { color: #7070a0 !important; }
+  .btn-preview { background: transparent; color: #e8e8f0; border: 1px solid #2a2a3a; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+  .btn-remove  { background: transparent; color: #f87171; border: 1px solid #f8717144; border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; }
+ 
+  /* ── Calendar ── */
+  .cal-header { display: flex; justify-content: space-between; align-items: center; }
+  .cal-nav { display: flex; gap: 8px; }
+  .cal-nav-btn { background: transparent; color: #e8e8f0; border: 1px solid #2a2a3a; border-radius: 10px; padding: 8px 14px; font-size: 14px; cursor: pointer; }
+  .cal-wrap { background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px; overflow: hidden; }
+  .cal-days-header { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid #2a2a3a; }
+  .cal-day-name { padding: 12px 0; text-align: center; font-size: 12px; color: #7070a0; font-weight: 700; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
+  .cal-cell {
+    border-right: 1px solid #2a2a3a; border-bottom: 1px solid #2a2a3a;
+    min-height: 90px; padding: 8px;
+  }
+  .cal-cell.today { background: #a259ff11; }
+  .cal-date-num {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 4px; font-size: 13px; font-weight: 400; color: #e8e8f0;
+  }
+  .cal-date-num.today { background: #a259ff; color: #fff; font-weight: 800; }
+  .cal-event {
+    border-radius: 4px; padding: 2px 5px; font-size: 10px;
+    margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+ 
+  /* ── Analytics ── */
+  .bar-chart { display: flex; align-items: flex-end; gap: 12px; height: 160px; }
+  .bar-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .bar-label-top { font-size: 11px; color: #7070a0; }
+  .bar-fill {
+    width: 100%;
+    background: linear-gradient(to top, #a259ff, #ff5eaa);
+    border-radius: 4px 4px 0 0; transition: height .4s ease;
+  }
+  .bar-label-bot { font-size: 12px; color: #7070a0; }
+  .perf-row { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+  .perf-emoji { font-size: 20px; width: 32px; }
+  .perf-info { flex: 1; }
+  .perf-top { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .perf-name { font-size: 13px; font-weight: 600; color: #e8e8f0; }
+  .perf-views { font-size: 13px; color: #a259ff; font-weight: 700; }
+  .perf-bar-bg { height: 6px; background: #1a1a26; border-radius: 3px; }
+  .perf-bar-fill { height: 100%; border-radius: 3px; background: linear-gradient(to right, #a259ff, #ff5eaa); }
+ 
+  /* ── Accounts ── */
+  .accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .account-card { background: #13131a; border: 1px solid #2a2a3a; border-radius: 14px; padding: 22px; }
+  .account-card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .account-platform { display: flex; align-items: center; gap: 10px; }
+  .account-icon { font-size: 28px; }
+  .account-name { font-weight: 800; color: #e8e8f0; }
+  .account-count { font-size: 12px; color: #7070a0; }
+  .account-card-dashed { background: #13131a; border: 1px dashed #2a2a3a; border-radius: 14px; padding: 22px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; min-height: 130px; }
+  .add-icon { font-size: 32px; opacity: .4; color: #7070a0; }
+  .add-label { color: #7070a0; font-size: 14px; }
+ 
+  /* ── Modal ── */
+  #modal-overlay {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.75); z-index: 1000;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  #modal-overlay.open { display: flex; }
+  .modal {
+    background: #13131a; border: 1px solid #2a2a3a; border-radius: 20px;
+    width: 100%; max-width: 560px; max-height: 90vh; overflow: auto;
+    padding: 32px; position: relative; animation: slideIn .2s ease;
+  }
+  .modal-close {
+    position: absolute; top: 16px; right: 16px;
+    background: transparent; border: none; color: #7070a0; font-size: 22px; cursor: pointer;
+    line-height: 1;
+  }
+  .modal-close:hover { color: #e8e8f0; }
+  .step-bar { display: flex; gap: 8px; margin-bottom: 28px; }
+  .step-item { flex: 1; text-align: center; }
+  .step-line { height: 3px; border-radius: 2px; margin-bottom: 6px; background: #2a2a3a; }
+  .step-line.done, .step-line.active { background: #a259ff; }
+  .step-name { font-size: 11px; color: #7070a0; }
+  .step-name.active { color: #a259ff; }
+  .modal-title { color: #e8e8f0; font-size: 22px; font-weight: 800; margin-bottom: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+  .form-label { color: #e8e8f0; font-size: 13px; }
+  .form-input {
+    width: 100%; background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 8px;
+    padding: 10px 14px; color: #e8e8f0; font-size: 14px; outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus { border-color: #a259ff55; }
+  select.form-input { appearance: none; }
+  .schedule-pills { display: flex; flex-wrap: wrap; gap: 8px; }
+  .ai-hint {
+    background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 10px; padding: 14px;
+    margin-bottom: 14px;
+  }
+  .ai-hint-label { color: #a259ff; font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .ai-hint-text  { color: #7070a0; font-size: 13px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 4px; }
+  .script-box {
+    background: #1a1a26; border: 1px solid #2a2a3a; border-radius: 12px;
+    padding: 18px; min-height: 220px; font-family: 'Courier New', monospace;
+    font-size: 13px; color: #e8e8f0; line-height: 1.8; white-space: pre-wrap;
+    word-break: break-word; margin-bottom: 16px;
+  }
+  .cursor { animation: blink 1s infinite; color: #a259ff; }
+  .btn-regen {
+    background: transparent; color: #e8e8f0; border: 1px solid #2a2a3a;
+    border-radius: 10px; padding: 12px 22px; font-size: 14px; cursor: pointer;
+  }
+ 
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    #sidebar { width: 64px !important; min-width: 64px !important; }
+    #sidebar .logo-text, #sidebar .nav-label, #sidebar .btn-create-text { opacity: 0 !important; }
+    #content { padding: 16px; }
+    #topbar { padding: 0 16px; }
+    .two-col { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+ 
+<div id="app">
+ 
+  <!-- ── SIDEBAR ── -->
+  <aside id="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">⚡</div>
+      <span class="logo-text">ViralShorts</span>
+    </div>
+ 
+    <nav id="sidenav">
+      <button class="nav-item active" data-tab="dashboard" onclick="switchTab('dashboard',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        <span class="nav-label">Dashboard</span>
+      </button>
+      <button class="nav-item" data-tab="series" onclick="switchTab('series',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z"/></svg>
+        <span class="nav-label">My Series</span>
+      </button>
+      <button class="nav-item" data-tab="queue" onclick="switchTab('queue',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+        <span class="nav-label">Post Queue</span>
+      </button>
+      <button class="nav-item" data-tab="calendar" onclick="switchTab('calendar',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        <span class="nav-label">Calendar</span>
+      </button>
+      <button class="nav-item" data-tab="analytics" onclick="switchTab('analytics',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        <span class="nav-label">Analytics</span>
+      </button>
+      <button class="nav-item" data-tab="accounts" onclick="switchTab('accounts',this)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+        <span class="nav-label">Accounts</span>
+      </button>
+    </nav>
+ 
+    <div class="sidebar-create">
+      <button class="btn-create" onclick="openModal()">
+        <span style="font-size:18px">+</span>
+        <span class="btn-create-text">New Series</span>
+      </button>
+    </div>
+ 
+    <button class="sidebar-toggle" onclick="toggleSidebar()" id="sidebar-toggle-btn">◀</button>
+  </aside>
+ 
+  <!-- ── MAIN ── -->
+  <div id="main">
+    <!-- Topbar -->
+    <header id="topbar">
+      <div id="topbar-title">Dashboard</div>
+      <div class="topbar-right">
+        <div class="search-box">🔍 <span>Search series…</span></div>
+        <button class="avatar-btn">👤</button>
+      </div>
+    </header>
+ 
+    <!-- Content -->
+    <div id="content">
+ 
+      <!-- ─── DASHBOARD TAB ─── -->
+      <div class="tab-panel active" id="tab-dashboard">
+        <!-- Welcome -->
+        <div class="welcome-banner">
+          <div>
+            <div class="welcome-title">Good evening 👋</div>
+            <div class="welcome-sub">You have <span>3 videos posting today</span>. Keep the momentum!</div>
+          </div>
+          <button class="btn-primary" onclick="openModal()">+ Create New Series</button>
+        </div>
+ 
+        <!-- Stats -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Total Views</span><span class="stat-icon">👁️</span></div>
+            <div class="stat-value">2.7M</div>
+            <div class="stat-delta-pos">+142K this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Active Series</span><span class="stat-icon">🚀</span></div>
+            <div class="stat-value" id="dash-active-count">3</div>
+            <div class="stat-delta-pos">+1 this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Videos Posted</span><span class="stat-icon">🎬</span></div>
+            <div class="stat-value">90</div>
+            <div class="stat-delta-pos">+12 this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Avg. Engagement</span><span class="stat-icon">📈</span></div>
+            <div class="stat-value">4.8%</div>
+            <div class="stat-delta-pos">+0.3% this week</div>
+          </div>
+        </div>
+ 
+        <!-- AI Insight -->
+        <div class="card">
+          <div class="insight-header">
+            <div class="insight-heading">
+              <span style="font-size:20px">✨</span>
+              <span style="font-weight:800;font-size:16px;color:#e8e8f0">AI Strategy Insights</span>
+              <span class="badge badge-purple">Powered by Claude</span>
+            </div>
+            <button class="btn-primary" id="insight-btn" onclick="fetchInsight()" style="font-size:13px;padding:8px 16px">Get Insights</button>
+          </div>
+          <div id="insight-placeholder" style="color:#7070a0;font-size:14px">Click "Get Insights" to receive AI-powered growth tips tailored to your active series.</div>
+          <div id="insight-text" style="display:none;color:#e8e8f0;font-size:14px;line-height:1.8;white-space:pre-wrap"></div>
+        </div>
+ 
+        <!-- Two-col: active series + upcoming -->
+        <div class="two-col">
+          <!-- Active Series -->
+          <div class="card">
+            <div class="card-title">Active Series</div>
+            <div id="dash-active-series" style="display:flex;flex-direction:column;gap:12px"></div>
+          </div>
+          <!-- Upcoming Posts -->
+          <div class="card">
+            <div class="card-title">Upcoming Posts</div>
+            <div id="dash-upcoming" style="display:flex;flex-direction:column;gap:10px"></div>
+          </div>
+        </div>
+      </div>
+ 
+      <!-- ─── MY SERIES TAB ─── -->
+      <div class="tab-panel" id="tab-series">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px">
+          <div class="pill-row" id="series-filter-pills">
+            <button class="pill active" onclick="filterSeries('All',this)">All</button>
+            <button class="pill" onclick="filterSeries('TikTok',this)">TikTok</button>
+            <button class="pill" onclick="filterSeries('YouTube Shorts',this)">YouTube Shorts</button>
+            <button class="pill" onclick="filterSeries('Instagram Reels',this)">Instagram Reels</button>
+            <button class="pill" onclick="filterSeries('active',this)">Active</button>
+            <button class="pill" onclick="filterSeries('paused',this)">Paused</button>
+          </div>
+          <button class="btn-primary" onclick="openModal()">+ New Series</button>
+        </div>
+        <div class="series-grid" id="series-grid"></div>
+      </div>
+ 
+      <!-- ─── QUEUE TAB ─── -->
+      <div class="tab-panel" id="tab-queue">
+        <div style="font-weight:800;font-size:18px;color:#e8e8f0">Post Queue</div>
+        <div class="queue-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Video Title</th>
+                <th>Series</th>
+                <th>Platform</th>
+                <th>Scheduled For</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="queue-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+ 
+      <!-- ─── CALENDAR TAB ─── -->
+      <div class="tab-panel" id="tab-calendar">
+        <div class="cal-header">
+          <div style="font-weight:800;font-size:18px;color:#e8e8f0">June 2026</div>
+          <div class="cal-nav">
+            <button class="cal-nav-btn">◀</button>
+            <button class="cal-nav-btn">▶</button>
+          </div>
+        </div>
+        <div class="cal-wrap">
+          <div class="cal-days-header">
+            <div class="cal-day-name">Sun</div>
+            <div class="cal-day-name">Mon</div>
+            <div class="cal-day-name">Tue</div>
+            <div class="cal-day-name">Wed</div>
+            <div class="cal-day-name">Thu</div>
+            <div class="cal-day-name">Fri</div>
+            <div class="cal-day-name">Sat</div>
+          </div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+      </div>
+ 
+      <!-- ─── ANALYTICS TAB ─── -->
+      <div class="tab-panel" id="tab-analytics">
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Total Views</span><span class="stat-icon">👁️</span></div>
+            <div class="stat-value">2.7M</div>
+            <div class="stat-delta-pos">+142K this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Followers Gained</span><span class="stat-icon">👥</span></div>
+            <div class="stat-value">8,420</div>
+            <div class="stat-delta-pos">+640 this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Avg. Watch Time</span><span class="stat-icon">⏱️</span></div>
+            <div class="stat-value">34s</div>
+            <div class="stat-delta-pos">+4s this week</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-top"><span class="stat-label">Videos Posted</span><span class="stat-icon">🎬</span></div>
+            <div class="stat-value">90</div>
+            <div class="stat-delta-pos">+12 this week</div>
+          </div>
+        </div>
+ 
+        <!-- Bar chart -->
+        <div class="card">
+          <div class="card-title">Views — This Week</div>
+          <div class="bar-chart" id="bar-chart"></div>
+        </div>
+ 
+        <!-- Series performance -->
+        <div class="card">
+          <div class="card-title">Series Performance</div>
+          <div id="series-perf"></div>
+        </div>
+      </div>
+ 
+      <!-- ─── ACCOUNTS TAB ─── -->
+      <div class="tab-panel" id="tab-accounts">
+        <div style="font-weight:800;font-size:18px;color:#e8e8f0">Connected Accounts</div>
+        <div class="accounts-grid" id="accounts-grid"></div>
+      </div>
+ 
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+ 
+<!-- ── CREATE SERIES MODAL ── -->
+<div id="modal-overlay">
+  <div class="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+ 
+    <!-- Step indicator -->
+    <div class="step-bar">
+      <div class="step-item">
+        <div class="step-line active" id="step-line-1"></div>
+        <div class="step-name active" id="step-name-1">Series Setup</div>
+      </div>
+      <div class="step-item">
+        <div class="step-line" id="step-line-2"></div>
+        <div class="step-name" id="step-name-2">Schedule</div>
+      </div>
+      <div class="step-item">
+        <div class="step-line" id="step-line-3"></div>
+        <div class="step-name" id="step-name-3">Preview Script</div>
+      </div>
+    </div>
+ 
+    <!-- Step 1 -->
+    <div id="modal-step-1">
+      <div class="modal-title">Create New Series</div>
+      <div class="form-group">
+        <label class="form-label">Series Title</label>
+        <input class="form-input" id="m-title" type="text" placeholder="e.g. Mind-Blowing Science Facts" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Topic / Niche</label>
+        <input class="form-input" id="m-topic" type="text" placeholder="e.g. Science, History, Finance…" />
+      </div>
+      <div class="form-group">
+        <label class="form-label">Video Style</label>
+        <select class="form-input" id="m-style">
+          <option>Listicle</option><option>Narrated Story</option>
+          <option>ASMR Cutting</option><option>Tutorial</option><option>News-style</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Platform</label>
+        <select class="form-input" id="m-platform">
+          <option>TikTok</option><option>YouTube Shorts</option>
+          <option>Instagram Reels</option><option>All Platforms</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">AI Voice</label>
+        <select class="form-input" id="m-voice">
+          <option>Male – Deep</option><option>Male – Energetic</option>
+          <option>Female – Calm</option><option>Female – Upbeat</option>
+        </select>
+      </div>
+      <button class="btn-primary" style="width:100%" onclick="modalStep(2)">Continue →</button>
+    </div>
+ 
+    <!-- Step 2 -->
+    <div id="modal-step-2" style="display:none">
+      <div class="modal-title">Posting Schedule</div>
+      <div class="form-group">
+        <label class="form-label">Frequency</label>
+        <div class="schedule-pills" id="schedule-pills">
+          <button class="pill active" onclick="setSchedule('Daily',this)">Daily</button>
+          <button class="pill" onclick="setSchedule('2x/week',this)">2x/week</button>
+          <button class="pill" onclick="setSchedule('3x/week',this)">3x/week</button>
+          <button class="pill" onclick="setSchedule('5x/week',this)">5x/week</button>
+          <button class="pill" onclick="setSchedule('Custom',this)">Custom</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Best Posting Time</label>
+        <input class="form-input" type="text" value="6:00 PM" />
+      </div>
+      <div class="ai-hint">
+        <div class="ai-hint-label">✨ AI Optimization</div>
+        <div class="ai-hint-text">ViralShorts will analyze your audience and auto-adjust posting times for maximum reach.</div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-secondary" onclick="modalStep(1)">← Back</button>
+        <button class="btn-primary" style="flex:1" onclick="generateScript()">Generate Preview Script</button>
+      </div>
+    </div>
+ 
+    <!-- Step 3 -->
+    <div id="modal-step-3" style="display:none">
+      <div class="modal-title">AI-Generated Script Preview</div>
+      <div class="script-box" id="script-box"><span style="color:#7070a0">Generating script…</span></div>
+      <div class="modal-actions" id="script-actions" style="display:none">
+        <button class="btn-regen" onclick="generateScript()">↺ Regenerate</button>
+        <button class="btn-primary" style="flex:1" onclick="launchSeries()">🚀 Launch Series</button>
+      </div>
+    </div>
+  </div>
+</div>
+ 
+<script>
+/* ─────────────────────────────────────────────────────────────
+   DATA
+───────────────────────────────────────────────────────────── */
+let SERIES = [
+  { id:1, title:"Mind-Blowing Science Facts", topic:"Science", platform:"TikTok", status:"active", nextPost:"Today 6:00 PM", videosPosted:34, views:"1.2M", style:"Listicle", schedule:"Daily", thumbnail:"🔬" },
+  { id:2, title:"Hidden History Uncovered", topic:"History", platform:"YouTube Shorts", status:"active", nextPost:"Tomorrow 9:00 AM", videosPosted:18, views:"430K", style:"Narrated Story", schedule:"3x/week", thumbnail:"🏛️" },
+  { id:3, title:"AI Tools You Need", topic:"Technology", platform:"Instagram Reels", status:"paused", nextPost:"—", videosPosted:11, views:"190K", style:"Tutorial", schedule:"2x/week", thumbnail:"🤖" },
+  { id:4, title:"Luxury Cars Ranked", topic:"Automotive", platform:"TikTok", status:"active", nextPost:"Today 8:00 PM", videosPosted:27, views:"880K", style:"Listicle", schedule:"Daily", thumbnail:"🏎️" },
+];
+ 
+const CALENDAR_EVENTS = [
+  { day:10, time:"6:00 PM", title:"Mind-Blowing Science #35", color:"#a259ff" },
+  { day:10, time:"8:00 PM", title:"Luxury Cars #28", color:"#ff5eaa" },
+  { day:11, time:"9:00 AM", title:"Hidden History #19", color:"#ff4444" },
+  { day:12, time:"6:00 PM", title:"Mind-Blowing Science #36", color:"#a259ff" },
+  { day:13, time:"8:00 PM", title:"Luxury Cars #29", color:"#ff5eaa" },
+  { day:14, time:"9:00 AM", title:"Hidden History #20", color:"#ff4444" },
+  { day:14, time:"6:00 PM", title:"Mind-Blowing Science #37", color:"#a259ff" },
+];
+ 
+const QUEUE = [
+  { id:1, title:"5 Quantum Physics Facts That Break Your Brain", series:"Mind-Blowing Science", platform:"TikTok", scheduledFor:"Today 6:00 PM", status:"ready" },
+  { id:2, title:"The Real Story Behind the Bermuda Triangle", series:"Hidden History", platform:"YouTube Shorts", scheduledFor:"Tomorrow 9:00 AM", status:"generating" },
+  { id:3, title:"#1 Ranked Supercar You've Never Heard Of", series:"Luxury Cars", platform:"TikTok", scheduledFor:"Today 8:00 PM", status:"ready" },
+  { id:4, title:"10 AI Tools Replacing Entire Teams in 2025", series:"AI Tools You Need", platform:"Instagram Reels", scheduledFor:"Paused", status:"paused" },
+  { id:5, title:"Why NASA Keeps These Space Facts Secret", series:"Mind-Blowing Science", platform:"TikTok", scheduledFor:"Jun 12 6:00 PM", status:"ready" },
+];
+ 
+const PLATFORMS = [
+  { name:"TikTok", icon:"🎵", accounts:2 },
+  { name:"YouTube", icon:"▶️", accounts:1 },
+  { name:"Instagram", icon:"📸", accounts:1 },
+];
+ 
+const BARS = [
+  { day:"Mon", views:38000 }, { day:"Tue", views:52000 }, { day:"Wed", views:47000 },
+  { day:"Thu", views:61000 }, { day:"Fri", views:75000 }, { day:"Sat", views:88000 }, { day:"Sun", views:70000 }
+];
+ 
+/* ─────────────────────────────────────────────────────────────
+   SIDEBAR TOGGLE
+───────────────────────────────────────────────────────────── */
+let sideOpen = true;
+function toggleSidebar() {
+  sideOpen = !sideOpen;
+  const sb = document.getElementById('sidebar');
+  const btn = document.getElementById('sidebar-toggle-btn');
+  sb.classList.toggle('collapsed', !sideOpen);
+  btn.textContent = sideOpen ? '◀' : '▶';
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   TAB SWITCHING
+───────────────────────────────────────────────────────────── */
+const TAB_LABELS = { dashboard:'Dashboard', series:'My Series', queue:'Post Queue', calendar:'Calendar', analytics:'Analytics', accounts:'Accounts' };
+ 
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('tab-' + id).classList.add('active');
+  btn.classList.add('active');
+  document.getElementById('topbar-title').textContent = TAB_LABELS[id];
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   RENDER HELPERS
+───────────────────────────────────────────────────────────── */
+function badgeHtml(text, cls) {
+  return `<span class="badge ${cls}">${text}</span>`;
+}
+function platformBadge(p) {
+  const cls = p.includes('TikTok') ? 'badge-purple' : p.includes('YouTube') ? 'badge-red' : p.includes('Instagram') ? 'badge-pink' : 'badge-blue';
+  return badgeHtml(p.split(' ')[0], cls);
+}
+ 
+/* ── Dashboard ── */
+function renderDashboard() {
+  const active = SERIES.filter(s => s.status === 'active');
+  document.getElementById('dash-active-count').textContent = active.length;
+ 
+  document.getElementById('dash-active-series').innerHTML = active.map(s => `
+    <div class="series-row">
+      <div class="series-row-emoji">${s.thumbnail}</div>
+      <div class="series-row-info">
+        <div class="series-row-title">${s.title}</div>
+        <div class="series-row-sub">${s.platform} · ${s.schedule}</div>
+      </div>
+      <div>
+        <div class="series-row-views">${s.views}</div>
+        <div class="series-row-views-label">views</div>
+      </div>
+    </div>
+  `).join('');
+ 
+  const ready = QUEUE.filter(q => q.status === 'ready').slice(0, 4);
+  document.getElementById('dash-upcoming').innerHTML = ready.map(q => `
+    <div class="queue-row">
+      <div class="queue-dot"></div>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:12px;font-weight:600;color:#e8e8f0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${q.title}</div>
+        <div style="font-size:11px;color:#7070a0">${q.scheduledFor}</div>
+      </div>
+      ${platformBadge(q.platform)}
+    </div>
+  `).join('');
+}
+ 
+/* ── Series Grid ── */
+let currentFilter = 'All';
+function filterSeries(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('#series-filter-pills .pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+  renderSeriesGrid();
+}
+ 
+function renderSeriesGrid() {
+  const filtered = currentFilter === 'All' ? SERIES
+    : SERIES.filter(s => s.platform.includes(currentFilter) || s.status === currentFilter.toLowerCase());
+ 
+  document.getElementById('series-grid').innerHTML = filtered.map(s => `
+    <div class="series-card">
+      <div class="series-card-header">
+        <div class="series-card-left">
+          <div class="series-thumb">${s.thumbnail}</div>
+          <div>
+            <div class="series-card-title">${s.title}</div>
+            <div class="series-card-sub">${s.style} · ${s.schedule}</div>
+          </div>
+        </div>
+        ${badgeHtml(s.status, s.status === 'active' ? 'badge-green' : 'badge-red')}
+      </div>
+      <div class="series-meta-grid">
+        <div class="series-meta-item"><div class="series-meta-label">📺 Platform</div><div class="series-meta-value">${s.platform}</div></div>
+        <div class="series-meta-item"><div class="series-meta-label">🎬 Videos</div><div class="series-meta-value">${s.videosPosted}</div></div>
+        <div class="series-meta-item"><div class="series-meta-label">👁 Views</div><div class="series-meta-value">${s.views}</div></div>
+        <div class="series-meta-item"><div class="series-meta-label">⏰ Next Post</div><div class="series-meta-value">${s.nextPost}</div></div>
+      </div>
+      <div class="series-actions">
+        <button class="${s.status === 'active' ? 'btn-pause' : 'btn-resume'}" onclick="toggleSeries(${s.id})">
+          ${s.status === 'active' ? '⏸ Pause' : '▶ Resume'}
+        </button>
+        <button class="btn-edit">✏️ Edit</button>
+      </div>
+    </div>
+  `).join('');
+}
+ 
+function toggleSeries(id) {
+  SERIES = SERIES.map(s => s.id === id ? { ...s, status: s.status === 'active' ? 'paused' : 'active' } : s);
+  renderSeriesGrid();
+  renderDashboard();
+}
+ 
+/* ── Queue ── */
+function renderQueue() {
+  document.getElementById('queue-tbody').innerHTML = QUEUE.map((q, i) => `
+    <tr>
+      <td class="td-title">${q.title}</td>
+      <td class="td-muted">${q.series}</td>
+      <td>${platformBadge(q.platform)}</td>
+      <td>${q.scheduledFor}</td>
+      <td>${badgeHtml(q.status, q.status === 'ready' ? 'badge-green' : q.status === 'generating' ? 'badge-purple' : 'badge-red')}</td>
+      <td><div style="display:flex;gap:6px"><button class="btn-preview">Preview</button><button class="btn-remove">Remove</button></div></td>
+    </tr>
+  `).join('');
+}
+ 
+/* ── Calendar ── */
+function renderCalendar() {
+  const grid = document.getElementById('cal-grid');
+  // June 1, 2026 = Monday → offset 1 (Sun=0)
+  let html = '<div class="cal-cell"></div>'; // Sunday offset
+  for (let d = 1; d <= 30; d++) {
+    const evs = CALENDAR_EVENTS.filter(e => e.day === d);
+    const isToday = d === 10;
+    const evHtml = evs.slice(0, 2).map(e =>
+      `<div class="cal-event" style="background:${e.color}33;border:1px solid ${e.color}55;color:${e.color}">${e.time} · ${e.title.split(' ').slice(0,3).join(' ')}…</div>`
+    ).join('');
+    html += `
+      <div class="cal-cell${isToday ? ' today' : ''}">
+        <div class="cal-date-num${isToday ? ' today' : ''}">${d}</div>
+        ${evHtml}
+      </div>`;
+  }
+  grid.innerHTML = html;
+}
+ 
+/* ── Analytics ── */
+function renderAnalytics() {
+  const max = Math.max(...BARS.map(b => b.views));
+  document.getElementById('bar-chart').innerHTML = BARS.map(b => `
+    <div class="bar-col">
+      <div class="bar-label-top">${(b.views/1000).toFixed(0)}K</div>
+      <div class="bar-fill" style="height:${(b.views/max)*120}px"></div>
+      <div class="bar-label-bot">${b.day}</div>
+    </div>
+  `).join('');
+ 
+  const widths = { "1.2M":"100%","880K":"73%","430K":"36%","190K":"16%" };
+  document.getElementById('series-perf').innerHTML = SERIES.map(s => `
+    <div class="perf-row">
+      <div class="perf-emoji">${s.thumbnail}</div>
+      <div class="perf-info">
+        <div class="perf-top">
+          <span class="perf-name">${s.title}</span>
+          <span class="perf-views">${s.views}</span>
+        </div>
+        <div class="perf-bar-bg">
+          <div class="perf-bar-fill" style="width:${widths[s.views]||'10%'}"></div>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+ 
+/* ── Accounts ── */
+function renderAccounts() {
+  const connected = PLATFORMS.map(p => `
+    <div class="account-card">
+      <div class="account-card-top">
+        <div class="account-platform">
+          <span class="account-icon">${p.icon}</span>
+          <div>
+            <div class="account-name">${p.name}</div>
+            <div class="account-count">${p.accounts} account${p.accounts>1?'s':''} connected</div>
+          </div>
+        </div>
+        ${badgeHtml('Connected','badge-green')}
+      </div>
+      <button class="btn-secondary" style="width:100%;text-align:center;padding:9px 0;font-size:13px;border-radius:8px">+ Add Account</button>
+    </div>
+  `).join('');
+ 
+  const newPlatforms = ['LinkedIn','Pinterest','Snapchat'].map(name => `
+    <div class="account-card-dashed">
+      <div class="add-icon">+</div>
+      <div class="add-label">Connect ${name}</div>
+      <button class="btn-primary" style="font-size:13px;padding:8px 18px;border-radius:8px">Connect</button>
+    </div>
+  `).join('');
+ 
+  document.getElementById('accounts-grid').innerHTML = connected + newPlatforms;
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   AI INSIGHT
+───────────────────────────────────────────────────────────── */
+async function fetchInsight() {
+  const btn = document.getElementById('insight-btn');
+  const placeholder = document.getElementById('insight-placeholder');
+  const textEl = document.getElementById('insight-text');
+  btn.disabled = true;
+  btn.textContent = 'Analyzing…';
+  placeholder.style.display = 'none';
+  textEl.style.display = 'block';
+  textEl.textContent = '';
+ 
+  const activeTitles = SERIES.filter(s => s.status === 'active').map(s => s.title).join(', ');
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are a viral content strategist. Based on these active video series: ${activeTitles} — give 3 short, punchy, actionable tips (1 sentence each) to maximize views this week on TikTok and YouTube Shorts. Start each tip with a relevant emoji. Be specific and bold.`
+        }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || 'Post consistently for best results!';
+    // Typewriter
+    let i = 0;
+    const iv = setInterval(() => {
+      i += 3;
+      textEl.textContent = text.slice(0, i);
+      if (i >= text.length) clearInterval(iv);
+    }, 10);
+  } catch {
+    textEl.textContent = '💡 Post at 6–9 PM on weekdays for the highest engagement.\n🔥 Use trending sounds in your first 3 seconds to stop the scroll.\n📈 Respond to every comment in the first hour after posting to boost the algorithm.';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Refresh';
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   MODAL
+───────────────────────────────────────────────────────────── */
+let modalCurrentStep = 1;
+let selectedSchedule = 'Daily';
+ 
+function openModal() {
+  modalCurrentStep = 1;
+  showModalStep(1);
+  document.getElementById('m-title').value = '';
+  document.getElementById('m-topic').value = '';
+  document.getElementById('modal-overlay').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal-overlay').classList.remove('open');
+}
+ 
+document.getElementById('modal-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+ 
+function showModalStep(n) {
+  [1,2,3].forEach(i => {
+    document.getElementById('modal-step-' + i).style.display = i === n ? 'block' : 'none';
+    const line = document.getElementById('step-line-' + i);
+    const name = document.getElementById('step-name-' + i);
+    if (i < n) { line.className = 'step-line done'; name.className = 'step-name'; }
+    else if (i === n) { line.className = 'step-line active'; name.className = 'step-name active'; }
+    else { line.className = 'step-line'; name.className = 'step-name'; }
+  });
+  modalCurrentStep = n;
+}
+ 
+function modalStep(n) { showModalStep(n); }
+ 
+function setSchedule(val, btn) {
+  selectedSchedule = val;
+  document.querySelectorAll('#schedule-pills .pill').forEach(p => p.classList.remove('active'));
+  btn.classList.add('active');
+}
+ 
+async function generateScript() {
+  showModalStep(3);
+  const scriptBox = document.getElementById('script-box');
+  const actions = document.getElementById('script-actions');
+  scriptBox.innerHTML = '<span style="color:#7070a0;animation:pulse 1.2s infinite">Generating script with AI…</span>';
+  actions.style.display = 'none';
+ 
+  const title = document.getElementById('m-title').value;
+  const topic = document.getElementById('m-topic').value;
+  const style = document.getElementById('m-style').value;
+  const platform = document.getElementById('m-platform').value;
+ 
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: `You are an expert short-form video scriptwriter for viral content.
+Generate a compelling ${style}-style script for a "${title || topic || 'viral content'}" video for ${platform}.
+Format exactly like this:
+🎬 HOOK (0–3s): [attention-grabbing opening line]
+ 
+📋 BODY:
+• [fact or story beat 1]
+• [fact or story beat 2]
+• [fact or story beat 3]
+• [fact or story beat 4]
+• [fact or story beat 5]
+ 
+🔥 CTA (last 3s): [call to action]
+ 
+Keep it under 60 seconds when spoken aloud. Make it viral-worthy, factual, and engaging.`
+        }]
+      })
+    });
+    const data = await res.json();
+    const text = data.content?.[0]?.text || 'Script generated!';
+    scriptBox.textContent = '';
+    let i = 0;
+    const iv = setInterval(() => {
+      i += 4;
+      scriptBox.textContent = text.slice(0, i);
+      if (i >= text.length) {
+        clearInterval(iv);
+        actions.style.display = 'flex';
+      }
+    }, 12);
+  } catch {
+    scriptBox.textContent = `🎬 HOOK (0–3s): You won't believe what scientists just discovered…\n\n📋 BODY:\n• Quantum entanglement allows particles to communicate faster than light.\n• A day on Venus is longer than a year on Venus.\n• There are more trees on Earth than stars in the Milky Way.\n• The human brain generates 23 watts of power — enough to light a light bulb.\n• Honey never expires — 3,000-year-old honey found in Egyptian tombs was still edible.\n\n🔥 CTA (last 3s): Follow for more mind-blowing facts every day!`;
+    actions.style.display = 'flex';
+  }
+}
+ 
+function launchSeries() {
+  const title = document.getElementById('m-title').value || document.getElementById('m-topic').value || 'New Series';
+  const platform = document.getElementById('m-platform').value;
+  const style = document.getElementById('m-style').value;
+  const emojis = ['✨','🌟','💥','🔥','⚡','🎯','🚀'];
+  SERIES.unshift({
+    id: Date.now(), title, topic: document.getElementById('m-topic').value,
+    platform, status: 'active', nextPost: 'Today 6:00 PM', videosPosted: 0,
+    views: '0', style, schedule: selectedSchedule,
+    thumbnail: emojis[Math.floor(Math.random()*emojis.length)]
+  });
+  closeModal();
+  renderDashboard();
+  renderSeriesGrid();
+  showToast('🚀 Series launched! First video is being generated.');
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   TOAST
+───────────────────────────────────────────────────────────── */
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.textContent = msg;
+  Object.assign(t.style, {
+    position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
+    background:'linear-gradient(135deg,#a259ff,#ff5eaa)', color:'#fff',
+    padding:'12px 24px', borderRadius:'10px', fontSize:'14px', fontWeight:'700',
+    zIndex:'9999', animation:'slideIn .25s ease', boxShadow:'0 8px 32px rgba(162,89,255,.4)',
+    whiteSpace:'nowrap'
+  });
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+ 
+/* ─────────────────────────────────────────────────────────────
+   INIT
+───────────────────────────────────────────────────────────── */
+renderDashboard();
+renderSeriesGrid();
+renderQueue();
+renderCalendar();
+renderAnalytics();
+renderAccounts();
+</script>
+</body>
+</html>
