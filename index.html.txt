@@ -1,0 +1,771 @@
+import { useState, useEffect, useRef } from "react";
+
+const ACCENT = "#a259ff";
+const ACCENT2 = "#ff5eaa";
+const BG = "#0a0a0f";
+const CARD = "#13131a";
+const CARD2 = "#1a1a26";
+const BORDER = "#2a2a3a";
+const TEXT = "#e8e8f0";
+const MUTED = "#7070a0";
+
+// ── tiny helpers ──────────────────────────────────────────────────────────────
+const Badge = ({ children, color = ACCENT }) => (
+  <span style={{
+    background: color + "22", color, border: `1px solid ${color}44`,
+    borderRadius: 6, padding: "2px 9px", fontSize: 11, fontWeight: 700,
+    letterSpacing: ".04em", textTransform: "uppercase"
+  }}>{children}</span>
+);
+
+const Pill = ({ label, active, onClick }) => (
+  <button onClick={onClick} style={{
+    background: active ? ACCENT : "transparent",
+    color: active ? "#fff" : MUTED,
+    border: `1px solid ${active ? ACCENT : BORDER}`,
+    borderRadius: 20, padding: "5px 16px", fontSize: 13, cursor: "pointer",
+    fontWeight: active ? 700 : 400, transition: "all .15s"
+  }}>{label}</button>
+);
+
+const Icon = ({ d, size = 18, color = MUTED }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none"
+    stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+
+const StatCard = ({ label, value, delta, icon }) => (
+  <div style={{
+    background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14,
+    padding: "20px 22px", display: "flex", flexDirection: "column", gap: 6
+  }}>
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <span style={{ fontSize: 12, color: MUTED, textTransform: "uppercase", letterSpacing: ".06em" }}>{label}</span>
+      <span style={{ fontSize: 20 }}>{icon}</span>
+    </div>
+    <div style={{ fontSize: 30, fontWeight: 800, color: TEXT, letterSpacing: "-.02em" }}>{value}</div>
+    {delta && <div style={{ fontSize: 12, color: delta.startsWith("+") ? "#4ade80" : "#f87171" }}>{delta} this week</div>}
+  </div>
+);
+
+// ── mock data ─────────────────────────────────────────────────────────────────
+const SERIES = [
+  {
+    id: 1, title: "Mind-Blowing Science Facts", topic: "Science", platform: "TikTok",
+    status: "active", nextPost: "Today 6:00 PM", videosPosted: 34, views: "1.2M",
+    style: "Listicle", schedule: "Daily", thumbnail: "🔬"
+  },
+  {
+    id: 2, title: "Hidden History Uncovered", topic: "History", platform: "YouTube Shorts",
+    status: "active", nextPost: "Tomorrow 9:00 AM", videosPosted: 18, views: "430K",
+    style: "Narrated Story", schedule: "3x/week", thumbnail: "🏛️"
+  },
+  {
+    id: 3, title: "AI Tools You Need", topic: "Technology", platform: "Instagram Reels",
+    status: "paused", nextPost: "—", videosPosted: 11, views: "190K",
+    style: "Tutorial", schedule: "2x/week", thumbnail: "🤖"
+  },
+  {
+    id: 4, title: "Luxury Cars Ranked", topic: "Automotive", platform: "TikTok",
+    status: "active", nextPost: "Today 8:00 PM", videosPosted: 27, views: "880K",
+    style: "Listicle", schedule: "Daily", thumbnail: "🏎️"
+  },
+];
+
+const CALENDAR_EVENTS = [
+  { day: 10, time: "6:00 PM", title: "Mind-Blowing Science #35", platform: "TikTok", color: ACCENT },
+  { day: 10, time: "8:00 PM", title: "Luxury Cars #28", platform: "TikTok", color: "#ff5eaa" },
+  { day: 11, time: "9:00 AM", title: "Hidden History #19", platform: "YouTube", color: "#ff4444" },
+  { day: 12, time: "6:00 PM", title: "Mind-Blowing Science #36", platform: "TikTok", color: ACCENT },
+  { day: 13, time: "8:00 PM", title: "Luxury Cars #29", platform: "TikTok", color: "#ff5eaa" },
+  { day: 14, time: "9:00 AM", title: "Hidden History #20", platform: "YouTube", color: "#ff4444" },
+  { day: 14, time: "6:00 PM", title: "Mind-Blowing Science #37", platform: "TikTok", color: ACCENT },
+];
+
+const QUEUE = [
+  { id: 1, title: "5 Quantum Physics Facts That Break Your Brain", series: "Mind-Blowing Science", platform: "TikTok", scheduledFor: "Today 6:00 PM", status: "ready" },
+  { id: 2, title: "The Real Story Behind the Bermuda Triangle", series: "Hidden History", platform: "YouTube Shorts", scheduledFor: "Tomorrow 9:00 AM", status: "generating" },
+  { id: 3, title: "#1 Ranked Supercar You've Never Heard Of", series: "Luxury Cars", platform: "TikTok", scheduledFor: "Today 8:00 PM", status: "ready" },
+  { id: 4, title: "10 AI Tools Replacing Entire Teams in 2025", series: "AI Tools You Need", platform: "Instagram Reels", scheduledFor: "Paused", status: "paused" },
+  { id: 5, title: "Why NASA Keeps These Space Facts Secret", series: "Mind-Blowing Science", platform: "TikTok", scheduledFor: "Jun 12 6:00 PM", status: "ready" },
+];
+
+const PLATFORMS_CONNECTED = [
+  { name: "TikTok", icon: "🎵", accounts: 2, color: "#69C9D0" },
+  { name: "YouTube", icon: "▶️", accounts: 1, color: "#FF0000" },
+  { name: "Instagram", icon: "📸", accounts: 1, color: "#E1306C" },
+];
+
+// ── CREATE SERIES MODAL ───────────────────────────────────────────────────────
+const CreateSeriesModal = ({ onClose, onCreated }) => {
+  const [step, setStep] = useState(1);
+  const [form, setForm] = useState({
+    title: "", topic: "", style: "Listicle", platform: "TikTok", schedule: "Daily", voice: "Male – Deep"
+  });
+  const [generating, setGenerating] = useState(false);
+  const [aiScript, setAiScript] = useState("");
+  const [streamText, setStreamText] = useState("");
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setStep(3);
+    setStreamText("");
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          stream: false,
+          messages: [{
+            role: "user",
+            content: `You are an expert short-form video scriptwriter for viral content.
+Generate a compelling ${form.style}-style script for a "${form.title || form.topic}" video for ${form.platform}.
+Format:
+🎬 HOOK (0–3s): [attention-grabbing opening line]
+📋 BODY: [3–5 punchy facts or story beats, each 1–2 sentences]
+🔥 CTA (last 3s): [call to action]
+Keep it under 60 seconds when spoken aloud. Make it viral-worthy, factual, and engaging.`
+          }]
+        })
+      });
+      const data = await res.json();
+      const text = data.content?.[0]?.text || "Script generated successfully!";
+      setAiScript(text);
+      // Simulate streaming by revealing char by char
+      let i = 0;
+      const interval = setInterval(() => {
+        i += 4;
+        setStreamText(text.slice(0, i));
+        if (i >= text.length) { clearInterval(interval); setGenerating(false); }
+      }, 12);
+    } catch {
+      setAiScript("Error generating script. Please try again.");
+      setGenerating(false);
+    }
+  };
+
+  const handleCreate = () => {
+    onCreated({ ...form, id: Date.now(), status: "active", videosPosted: 0, views: "0", thumbnail: "✨", nextPost: "Today 6:00 PM" });
+    onClose();
+  };
+
+  return (
+    <div style={{
+      position: "fixed", inset: 0, background: "rgba(0,0,0,.7)", zIndex: 1000,
+      display: "flex", alignItems: "center", justifyContent: "center", padding: 20
+    }}>
+      <div style={{
+        background: CARD, border: `1px solid ${BORDER}`, borderRadius: 20,
+        width: "100%", maxWidth: 560, maxHeight: "90vh", overflow: "auto",
+        padding: 32, position: "relative"
+      }}>
+        <button onClick={onClose} style={{
+          position: "absolute", top: 16, right: 16, background: "transparent",
+          border: "none", color: MUTED, fontSize: 22, cursor: "pointer"
+        }}>✕</button>
+
+        {/* Step indicator */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 28 }}>
+          {["Series Setup", "Schedule", "Preview Script"].map((s, i) => (
+            <div key={i} style={{ flex: 1, textAlign: "center" }}>
+              <div style={{
+                height: 3, borderRadius: 2, marginBottom: 6,
+                background: step > i ? ACCENT : step === i + 1 ? ACCENT : BORDER
+              }} />
+              <span style={{ fontSize: 11, color: step === i + 1 ? ACCENT : MUTED }}>{s}</span>
+            </div>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Create New Series</h2>
+            <Field label="Series Title" value={form.title} onChange={v => set("title", v)} placeholder="e.g. Mind-Blowing Science Facts" />
+            <Field label="Topic / Niche" value={form.topic} onChange={v => set("topic", v)} placeholder="e.g. Science, History, Finance…" />
+            <SelectField label="Video Style" value={form.style} options={["Listicle", "Narrated Story", "ASMR Cutting", "Tutorial", "News-style"]} onChange={v => set("style", v)} />
+            <SelectField label="Platform" value={form.platform} options={["TikTok", "YouTube Shorts", "Instagram Reels", "All Platforms"]} onChange={v => set("platform", v)} />
+            <SelectField label="AI Voice" value={form.voice} options={["Male – Deep", "Male – Energetic", "Female – Calm", "Female – Upbeat"]} onChange={v => set("voice", v)} />
+            <button onClick={() => setStep(2)} style={primaryBtn}>Continue →</button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: 0 }}>Posting Schedule</h2>
+            <div>
+              <div style={{ color: TEXT, fontSize: 13, marginBottom: 10 }}>Frequency</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {["Daily", "2x/week", "3x/week", "5x/week", "Custom"].map(s => (
+                  <Pill key={s} label={s} active={form.schedule === s} onClick={() => set("schedule", s)} />
+                ))}
+              </div>
+            </div>
+            <Field label="Best Posting Time" value="6:00 PM" onChange={() => {}} placeholder="6:00 PM" />
+            <div style={{ background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 10, padding: 14 }}>
+              <div style={{ color: ACCENT, fontSize: 12, fontWeight: 700, marginBottom: 4 }}>✨ AI Optimization</div>
+              <div style={{ color: MUTED, fontSize: 13 }}>ViralShorts will analyze your audience and auto-adjust posting times for maximum reach.</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setStep(1)} style={secondaryBtn}>← Back</button>
+              <button onClick={handleGenerate} style={{ ...primaryBtn, flex: 1 }}>Generate Preview Script</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+            <h2 style={{ color: TEXT, fontSize: 22, fontWeight: 800, margin: 0 }}>AI-Generated Script Preview</h2>
+            <div style={{
+              background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 12,
+              padding: 18, minHeight: 220, fontFamily: "monospace", fontSize: 13,
+              color: TEXT, lineHeight: 1.8, whiteSpace: "pre-wrap"
+            }}>
+              {generating ? (streamText || <span style={{ color: MUTED }}>Generating script…</span>) : (aiScript || streamText)}
+              {generating && <span style={{ animation: "blink 1s infinite", color: ACCENT }}>▍</span>}
+            </div>
+            {!generating && (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button onClick={handleGenerate} style={secondaryBtn}>↺ Regenerate</button>
+                <button onClick={handleCreate} style={{ ...primaryBtn, flex: 1 }}>🚀 Launch Series</button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Field = ({ label, value, onChange, placeholder }) => (
+  <div>
+    <div style={{ color: TEXT, fontSize: 13, marginBottom: 6 }}>{label}</div>
+    <input value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{
+        width: "100%", background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8,
+        padding: "10px 14px", color: TEXT, fontSize: 14, outline: "none", boxSizing: "border-box"
+      }} />
+  </div>
+);
+
+const SelectField = ({ label, value, options, onChange }) => (
+  <div>
+    <div style={{ color: TEXT, fontSize: 13, marginBottom: 6 }}>{label}</div>
+    <select value={value} onChange={e => onChange(e.target.value)}
+      style={{
+        width: "100%", background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8,
+        padding: "10px 14px", color: TEXT, fontSize: 14, outline: "none"
+      }}>
+      {options.map(o => <option key={o} value={o}>{o}</option>)}
+    </select>
+  </div>
+);
+
+const primaryBtn = {
+  background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`, color: "#fff",
+  border: "none", borderRadius: 10, padding: "12px 22px", fontSize: 15,
+  fontWeight: 700, cursor: "pointer"
+};
+const secondaryBtn = {
+  background: "transparent", color: TEXT, border: `1px solid ${BORDER}`,
+  borderRadius: 10, padding: "12px 22px", fontSize: 14, cursor: "pointer"
+};
+
+// ── MAIN APP ──────────────────────────────────────────────────────────────────
+export default function App() {
+  const [tab, setTab] = useState("dashboard");
+  const [showCreate, setShowCreate] = useState(false);
+  const [series, setSeries] = useState(SERIES);
+  const [sideOpen, setSideOpen] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [aiInsight, setAiInsight] = useState("");
+  const [insightLoading, setInsightLoading] = useState(false);
+
+  const navItems = [
+    { id: "dashboard", icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6", label: "Dashboard" },
+    { id: "series", icon: "M7 4v16M17 4v16M3 8h4m10 0h4M3 16h4m10 0h4M4 20h16a1 1 0 001-1V5a1 1 0 00-1-1H4a1 1 0 00-1 1v14a1 1 0 001 1z", label: "My Series" },
+    { id: "queue", icon: "M4 6h16M4 10h16M4 14h16M4 18h16", label: "Post Queue" },
+    { id: "calendar", icon: "M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z", label: "Calendar" },
+    { id: "analytics", icon: "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z", label: "Analytics" },
+    { id: "accounts", icon: "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1", label: "Accounts" },
+  ];
+
+  const fetchAiInsight = async () => {
+    setInsightLoading(true);
+    setAiInsight("");
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          messages: [{
+            role: "user",
+            content: `You are a viral content strategist. Based on these active video series: ${series.filter(s=>s.status==="active").map(s=>s.title).join(", ")} — give 3 short, punchy, actionable tips (1 sentence each) to maximize views this week on TikTok and YouTube Shorts. Start each tip with an emoji. Be specific and bold.`
+          }]
+        })
+      });
+      const data = await res.json();
+      setAiInsight(data.content?.[0]?.text || "Keep posting consistently for best results!");
+    } catch {
+      setAiInsight("Tip: Post at 6–9 PM on weekdays for highest engagement.");
+    }
+    setInsightLoading(false);
+  };
+
+  return (
+    <div style={{ display: "flex", minHeight: "100vh", background: BG, fontFamily: "'Inter', 'Segoe UI', sans-serif", color: TEXT }}>
+      <style>{`
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: ${BORDER}; border-radius: 3px; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+        @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+        @keyframes spin { to{transform:rotate(360deg)} }
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+      `}</style>
+
+      {/* SIDEBAR */}
+      <aside style={{
+        width: sideOpen ? 230 : 64, transition: "width .2s",
+        background: CARD, borderRight: `1px solid ${BORDER}`,
+        display: "flex", flexDirection: "column", position: "sticky", top: 0, height: "100vh",
+        flexShrink: 0
+      }}>
+        {/* Logo */}
+        <div style={{ padding: "20px 16px 10px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 10, flexShrink: 0,
+            background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 18
+          }}>⚡</div>
+          {sideOpen && <span style={{ fontWeight: 900, fontSize: 17, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>ViralShorts</span>}
+        </div>
+
+        {/* Nav */}
+        <nav style={{ flex: 1, padding: "10px 8px", display: "flex", flexDirection: "column", gap: 2 }}>
+          {navItems.map(n => (
+            <button key={n.id} onClick={() => setTab(n.id)} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer",
+              background: tab === n.id ? ACCENT + "22" : "transparent",
+              color: tab === n.id ? ACCENT : MUTED,
+              textAlign: "left", transition: "all .12s"
+            }}>
+              <Icon d={n.icon} size={18} color={tab === n.id ? ACCENT : MUTED} />
+              {sideOpen && <span style={{ fontSize: 14, fontWeight: tab === n.id ? 700 : 400 }}>{n.label}</span>}
+            </button>
+          ))}
+        </nav>
+
+        {/* Create button */}
+        <div style={{ padding: 12 }}>
+          <button onClick={() => setShowCreate(true)} style={{
+            width: "100%", background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+            color: "#fff", border: "none", borderRadius: 10, padding: "11px 0",
+            fontSize: 14, fontWeight: 700, cursor: "pointer", display: "flex",
+            alignItems: "center", justifyContent: "center", gap: 6
+          }}>
+            <span style={{ fontSize: 18 }}>+</span>
+            {sideOpen && "New Series"}
+          </button>
+        </div>
+
+        {/* Collapse toggle */}
+        <button onClick={() => setSideOpen(o => !o)} style={{
+          background: "transparent", border: "none", color: MUTED, cursor: "pointer",
+          padding: "12px 0", fontSize: 18, textAlign: "center"
+        }}>{sideOpen ? "◀" : "▶"}</button>
+      </aside>
+
+      {/* MAIN */}
+      <main style={{ flex: 1, overflow: "auto", minWidth: 0 }}>
+        {/* Topbar */}
+        <header style={{
+          height: 60, borderBottom: `1px solid ${BORDER}`, display: "flex",
+          alignItems: "center", justifyContent: "space-between",
+          padding: "0 28px", position: "sticky", top: 0, background: BG, zIndex: 50
+        }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: TEXT }}>
+            {navItems.find(n => n.id === tab)?.label}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+            <div style={{
+              background: CARD2, border: `1px solid ${BORDER}`, borderRadius: 8,
+              padding: "7px 14px", display: "flex", alignItems: "center", gap: 8,
+              fontSize: 13, color: MUTED
+            }}>
+              <span>🔍</span> <span>Search series…</span>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontSize: 16, cursor: "pointer"
+            }}>👤</div>
+          </div>
+        </header>
+
+        <div style={{ padding: 28, animation: "fadeIn .25s ease" }}>
+          {tab === "dashboard" && <DashboardTab series={series} aiInsight={aiInsight} insightLoading={insightLoading} onFetchInsight={fetchAiInsight} onNewSeries={() => setShowCreate(true)} />}
+          {tab === "series" && <SeriesTab series={series} onNew={() => setShowCreate(true)} onToggle={id => setSeries(s => s.map(x => x.id === id ? { ...x, status: x.status === "active" ? "paused" : "active" } : x))} />}
+          {tab === "queue" && <QueueTab />}
+          {tab === "calendar" && <CalendarTab />}
+          {tab === "analytics" && <AnalyticsTab />}
+          {tab === "accounts" && <AccountsTab />}
+        </div>
+      </main>
+
+      {showCreate && <CreateSeriesModal onClose={() => setShowCreate(false)} onCreated={s => setSeries(prev => [{ ...s }, ...prev])} />}
+    </div>
+  );
+}
+
+// ── DASHBOARD TAB ─────────────────────────────────────────────────────────────
+function DashboardTab({ series, aiInsight, insightLoading, onFetchInsight, onNewSeries }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 28 }}>
+      {/* Welcome */}
+      <div style={{
+        background: `linear-gradient(135deg, ${ACCENT}22, ${ACCENT2}11)`,
+        border: `1px solid ${ACCENT}33`, borderRadius: 16, padding: "24px 28px",
+        display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16
+      }}>
+        <div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: TEXT }}>Good evening 👋</div>
+          <div style={{ color: MUTED, fontSize: 14, marginTop: 4 }}>You have <span style={{ color: ACCENT, fontWeight: 700 }}>3 videos posting today</span>. Keep the momentum!</div>
+        </div>
+        <button onClick={onNewSeries} style={{
+          background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+          color: "#fff", border: "none", borderRadius: 10, padding: "12px 22px",
+          fontSize: 14, fontWeight: 700, cursor: "pointer"
+        }}>+ Create New Series</button>
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+        <StatCard label="Total Views" value="2.7M" delta="+142K" icon="👁️" />
+        <StatCard label="Active Series" value={series.filter(s => s.status === "active").length} delta="+1" icon="🚀" />
+        <StatCard label="Videos Posted" value="90" delta="+12" icon="🎬" />
+        <StatCard label="Avg. Engagement" value="4.8%" delta="+0.3%" icon="📈" />
+      </div>
+
+      {/* AI Insight Panel */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "22px 24px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 20 }}>✨</span>
+            <span style={{ fontWeight: 800, fontSize: 16, color: TEXT }}>AI Strategy Insights</span>
+            <Badge>Powered by Claude</Badge>
+          </div>
+          <button onClick={onFetchInsight} disabled={insightLoading} style={{
+            background: insightLoading ? CARD2 : `linear-gradient(135deg, ${ACCENT}, ${ACCENT2})`,
+            color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px",
+            fontSize: 13, fontWeight: 700, cursor: insightLoading ? "default" : "pointer"
+          }}>{insightLoading ? "Analyzing…" : "Get Insights"}</button>
+        </div>
+        {aiInsight ? (
+          <div style={{ color: TEXT, fontSize: 14, lineHeight: 1.8, whiteSpace: "pre-wrap" }}>{aiInsight}</div>
+        ) : (
+          <div style={{ color: MUTED, fontSize: 14 }}>Click "Get Insights" to receive AI-powered growth tips tailored to your active series.</div>
+        )}
+      </div>
+
+      {/* Active Series + Upcoming */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+        {/* Active series */}
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "22px 24px" }}>
+          <div style={{ fontWeight: 800, color: TEXT, marginBottom: 16 }}>Active Series</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {SERIES.filter(s => s.status === "active").map(s => (
+              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 12px", background: CARD2, borderRadius: 10 }}>
+                <div style={{ fontSize: 24 }}>{s.thumbnail}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{s.title}</div>
+                  <div style={{ fontSize: 11, color: MUTED }}>{s.platform} · {s.schedule}</div>
+                </div>
+                <div style={{ textAlign: "right", flexShrink: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ACCENT }}>{s.views}</div>
+                  <div style={{ fontSize: 11, color: MUTED }}>views</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Upcoming posts */}
+        <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "22px 24px" }}>
+          <div style={{ fontWeight: 800, color: TEXT, marginBottom: 16 }}>Upcoming Posts</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {QUEUE.filter(q => q.status === "ready").slice(0, 4).map(q => (
+              <div key={q.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: CARD2, borderRadius: 10 }}>
+                <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#4ade80", flexShrink: 0 }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: TEXT, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.title}</div>
+                  <div style={{ fontSize: 11, color: MUTED }}>{q.scheduledFor}</div>
+                </div>
+                <Badge color="#4ade80">{q.platform.split(" ")[0]}</Badge>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── SERIES TAB ────────────────────────────────────────────────────────────────
+function SeriesTab({ series, onNew, onToggle }) {
+  const [filter, setFilter] = useState("All");
+  const filtered = filter === "All" ? series : series.filter(s => s.platform.includes(filter) || s.status === filter.toLowerCase());
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {["All", "TikTok", "YouTube Shorts", "Instagram Reels", "active", "paused"].map(f => (
+            <Pill key={f} label={f.charAt(0).toUpperCase() + f.slice(1)} active={filter === f} onClick={() => setFilter(f)} />
+          ))}
+        </div>
+        <button onClick={onNew} style={primaryBtn}>+ New Series</button>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 16 }}>
+        {filtered.map(s => (
+          <div key={s.id} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <div style={{
+                  width: 52, height: 52, borderRadius: 12, background: CARD2,
+                  display: "flex", alignItems: "center", justifyContent: "center", fontSize: 26
+                }}>{s.thumbnail}</div>
+                <div>
+                  <div style={{ fontWeight: 800, fontSize: 14, color: TEXT }}>{s.title}</div>
+                  <div style={{ fontSize: 12, color: MUTED, marginTop: 2 }}>{s.style} · {s.schedule}</div>
+                </div>
+              </div>
+              <Badge color={s.status === "active" ? "#4ade80" : "#f87171"}>{s.status}</Badge>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              {[["📺 Platform", s.platform], ["🎬 Videos", s.videosPosted], ["👁 Views", s.views], ["⏰ Next Post", s.nextPost]].map(([k, v]) => (
+                <div key={k} style={{ background: CARD2, borderRadius: 8, padding: "8px 12px" }}>
+                  <div style={{ fontSize: 11, color: MUTED }}>{k}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: TEXT, marginTop: 2 }}>{v}</div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={() => onToggle(s.id)} style={{
+                flex: 1, background: s.status === "active" ? "#f8717122" : "#4ade8022",
+                color: s.status === "active" ? "#f87171" : "#4ade80",
+                border: `1px solid ${s.status === "active" ? "#f8717144" : "#4ade8044"}`,
+                borderRadius: 8, padding: "8px 0", fontSize: 13, cursor: "pointer", fontWeight: 600
+              }}>{s.status === "active" ? "⏸ Pause" : "▶ Resume"}</button>
+              <button style={{ flex: 1, ...secondaryBtn, padding: "8px 0", fontSize: 13, borderRadius: 8 }}>✏️ Edit</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── QUEUE TAB ─────────────────────────────────────────────────────────────────
+function QueueTab() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <div style={{ fontWeight: 800, fontSize: 18, color: TEXT }}>Post Queue</div>
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ background: CARD2 }}>
+              {["Video Title", "Series", "Platform", "Scheduled For", "Status", "Actions"].map(h => (
+                <th key={h} style={{ padding: "12px 18px", textAlign: "left", fontSize: 12, color: MUTED, fontWeight: 700, textTransform: "uppercase", letterSpacing: ".05em" }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {QUEUE.map((q, i) => (
+              <tr key={q.id} style={{ borderTop: `1px solid ${BORDER}`, background: i % 2 === 0 ? "transparent" : CARD2 + "44" }}>
+                <td style={{ padding: "14px 18px", fontSize: 13, color: TEXT, maxWidth: 240, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{q.title}</td>
+                <td style={{ padding: "14px 18px", fontSize: 12, color: MUTED }}>{q.series}</td>
+                <td style={{ padding: "14px 18px" }}><Badge>{q.platform.split(" ")[0]}</Badge></td>
+                <td style={{ padding: "14px 18px", fontSize: 13, color: TEXT }}>{q.scheduledFor}</td>
+                <td style={{ padding: "14px 18px" }}>
+                  <Badge color={q.status === "ready" ? "#4ade80" : q.status === "generating" ? ACCENT : "#f87171"}>
+                    {q.status}
+                  </Badge>
+                </td>
+                <td style={{ padding: "14px 18px" }}>
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button style={{ ...secondaryBtn, padding: "5px 12px", fontSize: 12, borderRadius: 6 }}>Preview</button>
+                    <button style={{ background: "transparent", color: "#f87171", border: `1px solid #f8717144`, borderRadius: 6, padding: "5px 12px", fontSize: 12, cursor: "pointer" }}>Remove</button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ── CALENDAR TAB ──────────────────────────────────────────────────────────────
+function CalendarTab() {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const dates = Array.from({ length: 30 }, (_, i) => i + 1);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ fontWeight: 800, fontSize: 18, color: TEXT }}>June 2026</div>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button style={secondaryBtn}>◀</button>
+          <button style={secondaryBtn}>▶</button>
+        </div>
+      </div>
+
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, overflow: "hidden" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", borderBottom: `1px solid ${BORDER}` }}>
+          {days.map(d => (
+            <div key={d} style={{ padding: "12px 0", textAlign: "center", fontSize: 12, color: MUTED, fontWeight: 700 }}>{d}</div>
+          ))}
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+          {/* Offset: June 1, 2026 = Monday (offset 1) */}
+          <div style={{ borderRight: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`, minHeight: 90, padding: 8 }} />
+          {dates.map((d, i) => {
+            const evs = CALENDAR_EVENTS.filter(e => e.day === d);
+            const isToday = d === 10;
+            return (
+              <div key={d} style={{
+                borderRight: `1px solid ${BORDER}`, borderBottom: `1px solid ${BORDER}`,
+                minHeight: 90, padding: 8, background: isToday ? ACCENT + "11" : "transparent"
+              }}>
+                <div style={{
+                  width: 26, height: 26, borderRadius: "50%", display: "flex",
+                  alignItems: "center", justifyContent: "center", marginBottom: 4,
+                  background: isToday ? ACCENT : "transparent",
+                  color: isToday ? "#fff" : TEXT, fontSize: 13, fontWeight: isToday ? 800 : 400
+                }}>{d}</div>
+                {evs.slice(0, 2).map((e, ei) => (
+                  <div key={ei} style={{
+                    background: e.color + "33", border: `1px solid ${e.color}55`,
+                    borderRadius: 4, padding: "2px 5px", fontSize: 10, color: e.color,
+                    marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
+                  }}>{e.time} · {e.title.split(" ").slice(0, 3).join(" ")}…</div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ANALYTICS TAB ─────────────────────────────────────────────────────────────
+function AnalyticsTab() {
+  const bars = [
+    { day: "Mon", views: 38000 }, { day: "Tue", views: 52000 }, { day: "Wed", views: 47000 },
+    { day: "Thu", views: 61000 }, { day: "Fri", views: 75000 }, { day: "Sat", views: 88000 }, { day: "Sun", views: 70000 }
+  ];
+  const max = Math.max(...bars.map(b => b.views));
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+        <StatCard label="Total Views" value="2.7M" delta="+142K" icon="👁️" />
+        <StatCard label="Followers Gained" value="8,420" delta="+640" icon="👥" />
+        <StatCard label="Avg. Watch Time" value="34s" delta="+4s" icon="⏱️" />
+        <StatCard label="Videos Posted" value="90" delta="+12" icon="🎬" />
+      </div>
+
+      {/* Bar chart */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "24px 28px" }}>
+        <div style={{ fontWeight: 800, color: TEXT, marginBottom: 20 }}>Views — This Week</div>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: 12, height: 160 }}>
+          {bars.map(b => (
+            <div key={b.day} style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <div style={{ fontSize: 11, color: MUTED }}>{(b.views / 1000).toFixed(0)}K</div>
+              <div style={{
+                width: "100%", height: `${(b.views / max) * 120}px`,
+                background: `linear-gradient(to top, ${ACCENT}, ${ACCENT2})`,
+                borderRadius: "4px 4px 0 0", transition: "height .3s"
+              }} />
+              <div style={{ fontSize: 12, color: MUTED }}>{b.day}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Per-series breakdown */}
+      <div style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: "24px 28px" }}>
+        <div style={{ fontWeight: 800, color: TEXT, marginBottom: 16 }}>Series Performance</div>
+        {SERIES.map(s => (
+          <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 14 }}>
+            <div style={{ fontSize: 20, width: 32 }}>{s.thumbnail}</div>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: TEXT }}>{s.title}</span>
+                <span style={{ fontSize: 13, color: ACCENT, fontWeight: 700 }}>{s.views}</span>
+              </div>
+              <div style={{ height: 6, background: CARD2, borderRadius: 3 }}>
+                <div style={{
+                  height: "100%", borderRadius: 3,
+                  width: s.views === "1.2M" ? "100%" : s.views === "880K" ? "73%" : s.views === "430K" ? "36%" : "16%",
+                  background: `linear-gradient(to right, ${ACCENT}, ${ACCENT2})`
+                }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ACCOUNTS TAB ──────────────────────────────────────────────────────────────
+function AccountsTab() {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <div style={{ fontWeight: 800, fontSize: 18, color: TEXT }}>Connected Accounts</div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 16 }}>
+        {PLATFORMS_CONNECTED.map(p => (
+          <div key={p.name} style={{ background: CARD, border: `1px solid ${BORDER}`, borderRadius: 14, padding: 22 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span style={{ fontSize: 28 }}>{p.icon}</span>
+                <div>
+                  <div style={{ fontWeight: 800, color: TEXT }}>{p.name}</div>
+                  <div style={{ fontSize: 12, color: MUTED }}>{p.accounts} account{p.accounts > 1 ? "s" : ""} connected</div>
+                </div>
+              </div>
+              <Badge color="#4ade80">Connected</Badge>
+            </div>
+            <button style={{ ...secondaryBtn, width: "100%", textAlign: "center", padding: "9px 0", fontSize: 13, borderRadius: 8 }}>+ Add Account</button>
+          </div>
+        ))}
+
+        {/* Add new platform */}
+        {["LinkedIn", "Pinterest", "Snapchat"].map(name => (
+          <div key={name} style={{ background: CARD, border: `1px dashed ${BORDER}`, borderRadius: 14, padding: 22, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, minHeight: 130 }}>
+            <span style={{ fontSize: 32, opacity: .4 }}>+</span>
+            <div style={{ color: MUTED, fontSize: 14 }}>Connect {name}</div>
+            <button style={{ ...primaryBtn, fontSize: 13, padding: "8px 18px" }}>Connect</button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
